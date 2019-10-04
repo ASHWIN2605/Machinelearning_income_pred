@@ -33,6 +33,26 @@ def main():
     data = pd.read_csv("tcd ml 2019-20 income prediction training (with labels).csv")
     test_data = pd.read_csv("tcd ml 2019-20 income prediction test (without labels).csv")
     
+    
+    prof_train=dataset[['Profession']]
+    prof_test =test_data[['Profession']]
+    
+    #dataset.to_excel('after_processing.xlsx')
+    
+    
+    df = pd.concat([prof_train,prof_test])
+    df = df.reset_index(drop=True)
+    
+    df_gpby = df.groupby(list(df.columns))
+    
+    idx = [x[0] for x in df_gpby.groups.values() if len(x) == 1]
+    
+    refactor=df.reindex(idx)
+    
+    for i in idx:
+        if i<111800:
+            dataset=dataset.drop(i)
+    
     # Check for Null Data
     dataset.isnull().sum()
     # Replace All Null Data in NaN
@@ -117,12 +137,17 @@ def main():
     dataset["Profession"].value_counts()
     dataset["Country"].value_counts()
     dataset["Gender"].value_counts()
+    
+    
+    
+            
+    
     #choose = 'Body Height [cm]','Year of Record','Age'
     #choose = 'University Degree','Gender'
     #dataset.drop(labels=['Instance','Size of City','Wears Glasses','Hair Color','Profession', 'Country'], axis = 1, inplace = True)
     
     # copy dataset for training
-    dataset_train = dataset[['Year of Record','Age','Gender','University Degree','Body Height [cm]','Income']].copy()
+    dataset_train = dataset[['Year of Record','Age','Gender','Profession','University Degree','Body Height [cm]','Income']].copy()
     dataset_train.isnull().sum()
     dataset_train.dtypes
     
@@ -130,16 +155,22 @@ def main():
     lb_style = LabelBinarizer(neg_label=0, pos_label=1, sparse_output=False)
     dataset_train = dataset_train.join(pd.DataFrame(lb_style.fit_transform(dataset_train["Gender"]),columns=lb_style.classes_, index=dataset_train.index))
     dataset_train = dataset_train.join(pd.DataFrame(lb_style.fit_transform(dataset_train["University Degree"]),columns=lb_style.classes_, index=dataset_train.index))
+    dummy=pd.get_dummies(dataset_train["Profession"],drop_first=True)
+    prof=dummy.as_matrix()
+    #dataset_train = dataset_train.join(dummy)
+    
     dataset_train.dtypes
     
     # copy dataset for test data
-    dataset_test = test_data[['Year of Record','Age','Gender','University Degree','Body Height [cm]']].copy()
+    dataset_test = test_data[['Year of Record','Age','Gender','Profession','University Degree','Body Height [cm]']].copy()
     dataset_test.isnull().sum()
     dataset_test.to_excel('y_data.xlsx')
     
     lb_test_style = LabelBinarizer(neg_label=0, pos_label=1, sparse_output=False)
     dataset_test =  dataset_test.join(pd.DataFrame(lb_style.fit_transform(dataset_test["Gender"]),columns=lb_style.classes_, index=dataset_test.index))
     dataset_test = dataset_test.join(pd.DataFrame(lb_style.fit_transform(dataset_test["University Degree"]),columns=lb_style.classes_, index=dataset_test.index))
+    dummy_test= pd.get_dummies(dataset_test["Profession"],drop_first=True)
+    test_prof = dummy_test.as_matrix()
     dataset_test.dtypes
     
     corrmat = dataset_train.corr() 
@@ -148,12 +179,14 @@ def main():
     sns.heatmap(corrmat, ax = ax, cmap ="YlGnBu", linewidths = 0.1) 
     
     array = dataset_train.values
-    X = array[:,[0,1,4,6,7,8,9,10,11,12,13,14]]
-    Y = array[:,5]
+    X = np.concatenate((array[:,[0,1,5,7,8,9,10,11,12,13,14,15]],prof),axis=1)
+    Y = array[:,6]
     
     test_array = dataset_test.values
-    X_test = test_array[:,[0,1,4,5,6,7,8,9,10,11,12,13]]
+    zeros=np.zeros([73230,8)
+    X_test = np.concatenate((test_array[:,[0,1,5,6,7,8,9,10,11,12,13,14]],test_prof,zeros),axis=1)
     
+   
     #Modeling
     
     validation_size = 0.20
