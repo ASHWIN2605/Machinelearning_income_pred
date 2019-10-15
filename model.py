@@ -34,17 +34,12 @@ def Pre_ProcessingData(dataset,IsTrainData):
     dataset.dtypes
     # Peek at data
     dataset.head(4)
-    #Removing Outliers and negative values from Income
+    #Removing Outliers and negative values from Income of TrainData
     if IsTrainData == True:
-        dataset = dataset[dataset.Income<5000000]
+        dataset = dataset[dataset.Income<2600000]
         dataset = dataset[dataset.Income>0]
     
     #Analyze Data
-    # Identify Numeric features
-    numeric_features = ['Instance','Size of City','Wears Glasses','Body Height [cm]','Year of Record','Age','Income']
-    # Identify Categorical features
-    cat_features = ['Hair Color','University Degree','Profession', 'Country', 'Gender']
-    
     # Fill Missing Category Entries with Unknown so we get a separtae column of unknown in dataset
     dataset["Hair Color"] = dataset["Hair Color"].fillna("Unknown")
     dataset["University Degree"] = dataset["University Degree"].fillna("Unknown")
@@ -52,141 +47,119 @@ def Pre_ProcessingData(dataset,IsTrainData):
     dataset["Country"] = dataset["Country"].fillna("Unknown_Country")
     dataset["Gender"] = dataset["Gender"].fillna("unknown")
     
+    #Fill missing numeric entries with the mean of the overall entries
     dataset["Year of Record"] = dataset["Year of Record"].fillna(dataset["Year of Record"].mean())
     dataset["Year of Record"] = np.round_(dataset["Year of Record"])
-    
     dataset["Age"] = dataset["Age"].fillna(dataset["Age"].mean())
     dataset["Age"] = np.round_(dataset["Age"])
     
     # Reformat Column so as to replace zero values with unknown
     dataset["Hair Color"] = dataset["Hair Color"].replace(to_replace ="0", value ="Unknown")
-    #dataset["University Degree"] = dataset["University Degree"].replace(to_replace ="0", value ="Unknown") 
     dataset["Profession"] = dataset["Profession"].replace(to_replace ="0", value ="Unknown_Profession")
-    #dataset["Gender"] = dataset["Gender"].replace(to_replace ="0", value ="unknown")
     dataset["Country"] = dataset["Country"].replace(to_replace ="0", value ="Unknown_Country")
     
     
     # Confirm All Missing Data is Handled
     dataset.isnull().sum()
     
-    #Feature Engineering
-    dataset["Hair Color"].value_counts()
-    dataset["University Degree"].value_counts()
-    dataset["Profession"].value_counts()
-    dataset["Country"].value_counts()
-    dataset["Gender"].value_counts()
-
+    #return the dataset
     return dataset
 
-     
     
 #Function to maintain consistency between train and test data input features
 #Inputs:Train and test data
-#output :Modified dataframe having consistent input datas   
-def Handle_consistency(dataset,test_data,testing):
-    if testing == True:
-        dataset = dataset.join(pd.DataFrame(lb_style.fit_transform(dataset["Profession"]),columns=lb_style.classes_, index=dataset.index))
-        #Add a new column -> Other Profession
-        dummyData = [0] * len(dataset['Profession'])
-        dataset['Other Profession'] = dummyData
+#output :Modified dataframe having consistent input datas between Train and Test Data  
+def Handle_consistency(dataset,test_data):
     
-        refProfessionList = list(set(test_data['Profession'].unique()) - set(dataset['Profession'].unique()))
-        test_data['Profession'] = test_data['Profession'].replace(refProfessionList,'Other Profession')
+    #Get the categorical features whcih needs to part of Training Model
+    categorical_features = ['Country','Profession','University Degree']
     
-        test_data = test_data.join(pd.DataFrame(lb_style.fit_transform(test_data["Profession"]),columns=lb_style.classes_, index=test_data.index))
+    #Copying only these categorical data in separate dataframe.
+    dataset_train = dataset[categorical_features]
+    dataset_test = test_data[categorical_features]
     
-        #Add a new columns to match the training frame
-        dummy_test_Data = [0] * len(test_data['Profession'])
-        neededProfessionList = list(set(dataset['Profession'].unique()) - set(test_data['Profession'].unique()))
+    #Adding separate column in both dataframe at last and giving different values to it
+    dataset_train["train"]=1
+    dataset_test["train"]=0
+    
+    ##Concatenating both the train and test data so if get dummies is performed after this,we aill get unique values of both Train and Test Data
+    combined=pd.concat([dataset_train,dataset_test])
+    
+    #Changing all the Profession and Country list to Uppercase,so as to remove duplicates while performing get dummies
+    combined['Profession']=combined['Profession'].apply(lambda x: x.upper())
+    combined['Country']=combined['Country'].apply(lambda x: x.upper())
+    
+    
+    #Perform get dummies in the concatenated dataframe for the above mentioned categorical data and storing it in separate dattaframe
+    prof_data=pd.get_dummies(combined[categorical_features],drop_first=False,columns=categorical_features)
+    
+    #Concatenating the obtained encoded columns in the actual combined dataframe
+    combined=pd.concat((combined,prof_data),axis=1)
+    
+    #Splitting the Train and test dataframe using the values of the Train column added.
+    train_prof = combined[combined['train'] == 1]
+    test_prof = combined[combined['train'] == 0]
+    
+    #Droping the original categorical columns and the added train column from the modified train dataframe
+    mod_train =train_prof.drop(['Country','Profession','University Degree','train'],axis=1)
+    
+    #Concatenating the required numerical features to the modifed train dataframe and this corresponds to our X_Train
+    X= pd.concat((dataset[['Year of Record','Age','Body Height [cm]']],mod_train),axis=1)
+    
+    #Getting the Income of train data as Y and taking it's log so as to maintain easy processing.
+    Y =dataset[['Income']]
+    Y=np.log(Y)
 
-        for prof in neededProfessionList:
-            test_data[prof] = dummy_test_Data
-        
-        X =dataset.drop(['Gender','Profession','University Degree','Income'],axis=1)
-        Y =dataset[['Income']]
-        X_test=test_data.drop(['Gender','Profession','University Degree','Income'],axis=1)
-        return X,Y,X_test
-    else:
-        categorical_features = ['Country','Profession','University Degree']
-        dataset_train = dataset[categorical_features]
-        #print(dataset_train)
-        dataset_test = test_data[categorical_features]
-        dataset_train["train"]=1
-        dataset_test["train"]=0
-        combined=pd.concat([dataset_train,dataset_test])
-        prof_data=pd.get_dummies(combined[categorical_features],drop_first=True,columns=categorical_features)
-        combined=pd.concat((combined,prof_data),axis=1)
-        train_prof = combined[combined['train'] == 1]
-        test_prof = combined[combined['train'] == 0]
-        mod_train =train_prof.drop(['Country','Profession','University Degree','train'],axis=1)
-        X= pd.concat((dataset[['Year of Record','Age','Body Height [cm]']],mod_train),axis=1)
-        print(X)
-        Y =dataset[['Income']]
-        mod_test =test_prof.drop(['Country','Profession','University Degree','train'],axis=1)
-        X_test= pd.concat((test_data[['Year of Record','Age','Body Height [cm]']],mod_test),axis=1)
-        return X,Y,X_test
-
+    #Droping the original categorical columns and the added train column from the modified test dataframe
+    mod_test =test_prof.drop(['Country','Profession','University Degree','train'],axis=1)
+    
+     #Concatenating the required numerical features to the modifed train dataframe and this corresponds to our X_Test
+    X_test= pd.concat((test_data[['Year of Record','Age','Body Height [cm]']],mod_test),axis=1)
+    
+    #Return the values
+    return X,Y,X_test
+ 
 
 
 #Test_train Split Function
+#Input:X_Train ,Y_Train,X_test
+#Output :X_Train,X_validate,Y_Trian,Y_Validate and unmodified X_Test
 def Test_Train_split(X_Train,Y_Train,X_Test):
-    X_train, X_test, y_train, y_test = train_test_split(X_Train, Y_Train, test_size=0.2)
-    #print (X_train.shape, y_train.shape)
-    #print (X_test.shape, y_test.shape)
-    #scaler = preprocessing.StandardScaler().fit(X_train)
-    #X_train = scaler.transform(X_train)
-    #X_Test = scaler.transform(X_Test)
-    #X_test=scaler.transform(X_test)
-    return X_train,y_train,X_test,y_test,X_Test
     
+    #Using the train test split function to split it into 80-20 ratio
+    X_train, X_validate, y_train, y_validate = train_test_split(X_Train, Y_Train, test_size=0.2)
+    
+    #return all the values
+    return X_train,y_train,X_validate,y_validate,X_Test
     
     
 #Train the model to predict the values
-#Inputs X_Train and Y_Train
+#Inputs X_Train Y_Train X_Validate,Y_Validate and X_test
 #Output Predicted value
-def Train_Model(X_Train,Y_Train,X_Validate,Y_Validate,X_Test,Is_Linear_Reg):
-    if Is_Linear_Reg:
-        
-        #Modeling by fitting in Linear reg
-        reg = LinearRegression().fit(X_Train, Y_Train)
-        b=reg.coef_
-        #print(b)
-        reg.predict(X_Validate)
-        RMSE = np.sqrt(mean_squared_error(Y_Validate,(reg.predict(X_Validate))))
-        print(RMSE)
-        Predict = reg.predict(X_Test)
-        np.savetxt('out.csv',Predict)
-    else:
-         #clf_ = SGDRegressor(alpha=0.0001, average=False, early_stopping=False,
-       #epsilon=0.1, eta0=0.01, fit_intercept=True, l1_ratio=0.15,
-       #learning_rate='invscaling', loss='squared_loss', max_iter=1000,
-       #n_iter_no_change=5, penalty='l2', power_t=0.25, random_state=None,
-       #shuffle=True, tol=0.001, validation_fraction=0.1, verbose=0,
-       #warm_start=False)
-         #clf_.fit(X_Train, Y_Train)
-         #clf_.predict(X_Validate)
-         #RMSE = np.sqrt(mean_squared_error(Y_Validate,(clf_.predict(X_Validate))))
-         #print(RMSE)
-         #b=clf_.predict(X_Test)
-         #np.savetxt('out.csv',b)
-         #fitting SVR to the dataset
-         #from sklearn.svm import SVR
-         #svr_reg = SVR(kernel = 'rbf', gamma = 'scale', epsilon= 0.2)
-         #svr_reg.fit(X_Train, Y_Train)
-         #b=svr_reg.predict(X_Test)
-         #np.savetxt('out.csv',b)
-         regressor = BayesianRidge()
-         fitResult = regressor.fit(X_Train, Y_Train)
-         YPredTest = regressor.predict(X_Validate)
-         RMSE=np.sqrt(metrics.mean_squared_error(Y_Validate, YPredTest))
-         print(RMSE)
-         b=regressor.predict(X_Test)
-         np.savetxt('out.csv',b)
-         
-         
-       
-      
+def Train_Model(X_Train,Y_Train,X_Validate,Y_Validate,X_Test):
+    #fitting Bayseian Regression to the training dataset
+    regressor = BayesianRidge()
+    fitResult = regressor.fit(X_Train, Y_Train)
     
+    #Predicting for the validate portion
+    YPredTest = fitResult.predict(X_Validate)
+    
+    #Converting the Y_values to exponential forms as we have taken log while modelling for ease in calculations
+    Y_Validate=np.exp(Y_Validate)
+    YPredTest=np.exp(YPredTest)
+    
+    #Calulating and prinintng the RMSE values for the Validate portion
+    RMSE=np.sqrt(metrics.mean_squared_error(Y_Validate, YPredTest))
+    print(RMSE)
+    
+    #predicting the model for X_test
+    b=fitResult.predict(X_Test)
+    
+    #Performing exponential function on the predicted values and exporting the output values to an out excel file
+    b=np.exp(b)
+    np.savetxt('out.csv',b)
+         
+           
 #Run all the function calls from here
 def run():
     #Load Data
@@ -197,15 +170,14 @@ def run():
     Pre_process_Train=Pre_ProcessingData(dataset,True)
     Pre_Process_Test=Pre_ProcessingData(test_data,False)
 
-    #handle consistency between train and test data
-    X_Encoded,Y_Encoded,X_Test_Encoded=Handle_consistency(Pre_process_Train, Pre_Process_Test, False)
+    #Handle consistency between train and test data
+    X_Encoded,Y_Encoded,X_Test_Encoded=Handle_consistency(Pre_process_Train, Pre_Process_Test)
     
     #Train_trest Split
     X_Train,Y_Train,X_Validate,Y_Validate,X_Test=Test_Train_split(X_Encoded,Y_Encoded,X_Test_Encoded)
-    
-    
-    #Train_data
-    Train_Model(X_Train,Y_Train,X_Validate,Y_Validate,X_Test,False)
+     
+    #Model_data
+    Train_Model(X_Train,Y_Train,X_Validate,Y_Validate,X_Test)
 
 #main call   
 def main():
