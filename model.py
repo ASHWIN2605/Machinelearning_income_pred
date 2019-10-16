@@ -121,36 +121,16 @@ def Handle_consistency(dataset,test_data):
  
 
 
-#Test_train Split Function
-#Input:X_Train ,Y_Train,X_test
-#Output :X_Train,X_validate,Y_Trian,Y_Validate and unmodified X_Test
-def Test_Train_split(X_Train,Y_Train,X_Test):
-    
-    #Using the train test split function to split it into 80-20 ratio
-    X_train, X_validate, y_train, y_validate = train_test_split(X_Train, Y_Train, test_size=0.2)
-    
-    #return all the values
-    return X_train,y_train,X_validate,y_validate,X_Test
+
     
     
 #Train the model to predict the values
 #Inputs X_Train Y_Train X_Validate,Y_Validate and X_test
 #Output Predicted value
-def Train_Model(X_Train,Y_Train,X_Validate,Y_Validate,X_Test):
+def Train_Model(X_Train,Y_Train,X_Test):
     #fitting Bayseian Regression to the training dataset
     regressor = BayesianRidge()
     fitResult = regressor.fit(X_Train, Y_Train)
-    
-    #Predicting for the validate portion
-    YPredTest = fitResult.predict(X_Validate)
-    
-    #Converting the Y_values to exponential forms as we have taken log while modelling for ease in calculations
-    Y_Validate=np.exp(Y_Validate)
-    YPredTest=np.exp(YPredTest)
-    
-    #Calulating and prinintng the RMSE values for the Validate portion
-    RMSE=np.sqrt(metrics.mean_squared_error(Y_Validate, YPredTest))
-    print(RMSE)
     
     #predicting the model for X_test
     b=fitResult.predict(X_Test)
@@ -173,11 +153,8 @@ def run():
     #Handle consistency between train and test data
     X_Encoded,Y_Encoded,X_Test_Encoded=Handle_consistency(Pre_process_Train, Pre_Process_Test)
     
-    #Train_trest Split
-    X_Train,Y_Train,X_Validate,Y_Validate,X_Test=Test_Train_split(X_Encoded,Y_Encoded,X_Test_Encoded)
-     
     #Model_data
-    Train_Model(X_Train,Y_Train,X_Validate,Y_Validate,X_Test)
+    Train_Model(X_Encoded,Y_Encoded,X_Test_Encoded)
 
 #main call   
 def main():
